@@ -1,0 +1,10 @@
+{
+  "extends": ["airbnb", "prettier", "prettier/react"],
+  "env": {
+    "browser": 1
+  },
+  "rules": {
+    "react/jsx-filename-extension": 0,
+    "react/prefer-stateless-function": 0
+  }
+}
