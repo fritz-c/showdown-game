@@ -8,6 +8,9 @@
     "test": "react-app-rewired test --env=jsdom",
     "eject": "react-app-rewired eject"
   },
+  "now": {
+    "alias": "showdown-game"
+  },
   "dependencies": {
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
