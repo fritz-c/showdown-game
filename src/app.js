@@ -9,6 +9,12 @@ const GAME_STATE = {
   FINISHED: 'FINISHED',
 };
 
+const ACTIONS = {
+  START: 'START',
+  DRAW: 'DRAW',
+  EARLY_DRAW: 'EARLY_DRAW',
+};
+
 const Board = styled.main`
   display: flex;
   height: 100vh;
@@ -17,12 +23,14 @@ const DrawButton = styled.button`
   flex: 1 1 auto;
   padding: 25px;
   border: solid black 2px;
-  background-color: ${({ gameState }) =>
-    ({
-      [GAME_STATE.IDLE]: 'lightgray',
-      [GAME_STATE.COUNTDOWN]: 'lightblue',
-      [GAME_STATE.SHOWDOWN]: 'red',
-    }[gameState] || 'lightgray')};
+  background: lightgray;
+  font-size: 8vw;
+  ${p => (p.isCountdown ? 'background: lightblue;' : '')};
+  ${p => (p.isShowdown ? 'background: red;' : '')};
+  ${p => (p.hasDrawn ? 'background: gray;' : '')};
+  ${p => (p.isLoser ? 'background: yellow;' : '')};
+  ${p => (p.hasDrawnEarly ? 'background: #333;' : '')};
+  ${p => (p.isWinner ? 'background: lightgreen;' : '')};
 `;
 
 const ControlPanel = styled.div`
@@ -36,19 +44,42 @@ const ControlPanel = styled.div`
 `;
 
 const StartButton = styled.button`
+  font-size: 8vw;
+  background-color: blue;
+  border-radius: 0;
+  color: white;
   pointer-events: auto;
 `;
 
 const TimeDisplay = styled.div``;
 
-// const handlePlayerStateChange = (playerState, action) => {
-//   switch (action.type) {
-//     case 'DRAW':
-//       return { ...playerState, hasDrawn: true, score: action.payload };
-//     default:
-//       return playerState
-//   }
-// };
+const handlePlayerStateChange = (playerState = {}, action) => {
+  switch (action.type) {
+    case ACTIONS.START:
+      // Reset everything but the playerId
+      return { playerId: playerState.playerId };
+    case ACTIONS.EARLY_DRAW:
+      return {
+        ...playerState,
+        hasDrawnEarly: true,
+        score: 99999999,
+        hasDrawn: true,
+      };
+    case ACTIONS.DRAW:
+      if (playerState.hasDrawnEarly) {
+        return playerState;
+      }
+
+      return {
+        ...playerState,
+        hasDrawn: true,
+        score: action.payload.score,
+        isWinner: action.payload.drawOrder === 0,
+      };
+    default:
+      return playerState;
+  }
+};
 
 class App extends Component {
   constructor(props) {
@@ -64,6 +95,7 @@ class App extends Component {
     this.draw = this.draw.bind(this);
     this.earlyDraw = this.earlyDraw.bind(this);
     this.start = this.start.bind(this);
+    this.getPlayers = this.getPlayers.bind(this);
   }
 
   componentDidMount() {
@@ -82,10 +114,29 @@ class App extends Component {
     // })
   }
 
+  getPlayers() {
+    return [...new Array(this.state.playerCount)].map(
+      (_, playerId) => this.state.playerState[playerId] || { playerId }
+    );
+  }
+
   start() {
     const preFaceOffTimer = 1000 + Math.random() * 3000;
-    this.setState({ gameState: GAME_STATE.COUNTDOWN, playerState: {} });
+    this.setState({
+      gameState: GAME_STATE.COUNTDOWN,
+      playerState: this.getPlayers().reduce((acc, player) => {
+        acc[player.playerId] = handlePlayerStateChange(player, {
+          type: ACTIONS.START,
+        });
+        return acc;
+      }, {}),
+    });
+
     setTimeout(() => {
+      if (this.state.gameState === GAME_STATE.FINISHED) {
+        return;
+      }
+
       this.startedAt = Date.now();
       this.setState({ gameState: GAME_STATE.SHOWDOWN });
 
@@ -109,69 +160,98 @@ class App extends Component {
       return;
     }
 
-    const playersDrawnSoFar = Object.keys(playerState)
-      .map(i => playerState[i])
-      .filter(({ hasDrawn }) => hasDrawn);
+    const playersDrawnSoFar = this.getPlayers().filter(
+      p => p.hasDrawn && !p.hasDrawnEarly
+    );
 
-    const allPlayersHaveDrawn = playersDrawnSoFar.length >= playerCount - 1;
+    const allPlayersHaveDrawn =
+      this.getPlayers().filter(p => p.hasDrawn).length >= playerCount - 1;
 
     this.setState({
       playerState: {
         ...playerState,
-        [playerId]: {
-          ...playerState[playerId],
-          hasDrawn: true,
-          score: Date.now() - this.startedAt,
-        },
+        [playerId]: handlePlayerStateChange(playerState[playerId], {
+          type: ACTIONS.DRAW,
+          payload: {
+            score: Date.now() - this.startedAt,
+            drawOrder: playersDrawnSoFar.length,
+          },
+        }),
       },
       ...(allPlayersHaveDrawn ? { gameState: GAME_STATE.FINISHED } : {}),
     });
   }
 
-  earlyDraw(playerId) {}
+  earlyDraw(playerId) {
+    const { playerState, playerCount } = this.state;
+
+    const allPlayersHaveDrawn =
+      this.getPlayers().filter(p => p.hasDrawn).length >= playerCount - 1;
+
+    this.setState({
+      playerState: {
+        ...playerState,
+        [playerId]: handlePlayerStateChange(playerState[playerId], {
+          type: ACTIONS.EARLY_DRAW,
+        }),
+      },
+      ...(allPlayersHaveDrawn ? { gameState: GAME_STATE.FINISHED } : {}),
+    });
+  }
 
   render() {
-    const { timer, gameState, playerState, playerCount } = this.state;
+    const { timer, gameState } = this.state;
     const fireEvent = playerId =>
       ({
         [GAME_STATE.COUNTDOWN]: () => this.earlyDraw(playerId),
         [GAME_STATE.SHOWDOWN]: () => this.draw(playerId),
       }[gameState] || (event => event.preventDefault()));
-
+    const startButton = (
+      <StartButton
+        onClick={this.start}
+        disabled={
+          gameState !== GAME_STATE.IDLE && gameState !== GAME_STATE.FINISHED
+        }
+      >
+        START
+      </StartButton>
+    );
     return (
       <div>
         <Board>
-          {[...new Array(playerCount)]
-            .map((_, playerId) => playerState[playerId] || { playerId })
-            .map(({ playerId, score }) => (
+          {this.getPlayers().map(
+            ({ playerId, score, isWinner, hasDrawn, hasDrawnEarly }) => (
               <DrawButton
                 key={playerId} // eslint-disable-line react/no-array-index-key
-                disabled={gameState !== GAME_STATE.SHOWDOWN}
-                gameState={gameState}
+                disabled={
+                  gameState !== GAME_STATE.COUNTDOWN &&
+                  gameState !== GAME_STATE.SHOWDOWN
+                }
+                isCountdown={gameState === GAME_STATE.COUNTDOWN}
+                isShowdown={gameState === GAME_STATE.SHOWDOWN}
+                hasDrawn={hasDrawn}
+                isLoser={hasDrawn && !isWinner}
+                isWinner={isWinner}
+                hasDrawnEarly={hasDrawnEarly}
                 onMouseDown={fireEvent(playerId)}
                 onTouchStart={fireEvent(playerId)}
               >
                 {gameState === GAME_STATE.SHOWDOWN ? 'draw!!!' : 'wait...'}
                 <br />
-                {(gameState === GAME_STATE.FINISHED && score) || ''}
+                {gameState === GAME_STATE.FINISHED && !hasDrawnEarly
+                  ? `${score / 1000}s`
+                  : ''}
               </DrawButton>
-            ))}
+            )
+          )}
         </Board>
 
         <ControlPanel>
-          {gameState === GAME_STATE.SHOWDOWN ? (
-            <TimeDisplay>{timer}</TimeDisplay>
-          ) : (
-            <StartButton
-              onClick={this.start}
-              disabled={
-                gameState !== GAME_STATE.IDLE &&
-                gameState !== GAME_STATE.FINISHED
-              }
-            >
-              START
-            </StartButton>
-          )}
+          {{
+            [GAME_STATE.SHOWDOWN]: <TimeDisplay>{timer}</TimeDisplay>,
+            [GAME_STATE.IDLE]: startButton,
+            [GAME_STATE.FINISHED]: startButton,
+          }[gameState] || ''}
         </ControlPanel>
       </div>
     );
