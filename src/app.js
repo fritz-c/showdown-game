@@ -2,6 +2,13 @@ import React, { Component } from 'react';
 import { hot } from 'react-hot-loader';
 import styled from 'styled-components';
 
+const GAME_STATE = {
+  IDLE: 'IDLE',
+  COUNTDOWN: 'COUNTDOWN',
+  SHOWDOWN: 'SHOWDOWN',
+  FINISHED: 'FINISHED',
+};
+
 const Board = styled.main`
   display: flex;
   height: 100vh;
@@ -12,9 +19,9 @@ const DrawButton = styled.button`
   border: solid black 2px;
   background-color: ${({ gameState }) =>
     ({
-      idle: 'lightgray',
-      countdown: 'lightblue',
-      showdown: 'red',
+      [GAME_STATE.IDLE]: 'lightgray',
+      [GAME_STATE.COUNTDOWN]: 'lightblue',
+      [GAME_STATE.SHOWDOWN]: 'red',
     }[gameState] || 'lightgray')};
 `;
 
@@ -25,6 +32,7 @@ const ControlPanel = styled.div`
   left: 50%;
   transform: translateX(-50%) translateY(-50%);
   text-align: center;
+  background-color: white;
 `;
 
 const StartButton = styled.button`
@@ -33,12 +41,21 @@ const StartButton = styled.button`
 
 const TimeDisplay = styled.div``;
 
+// const handlePlayerStateChange = (playerState, action) => {
+//   switch (action.type) {
+//     case 'DRAW':
+//       return { ...playerState, hasDrawn: true, score: action.payload };
+//     default:
+//       return playerState
+//   }
+// };
+
 class App extends Component {
   constructor(props) {
     super(props);
 
     this.state = {
-      gameState: 'idle',
+      gameState: GAME_STATE.IDLE,
       timer: 0,
       playerCount: 2,
       playerState: {},
@@ -67,10 +84,10 @@ class App extends Component {
 
   start() {
     const preFaceOffTimer = 1000 + Math.random() * 3000;
-    this.setState({ gameState: 'countdown', playerState: {} });
+    this.setState({ gameState: GAME_STATE.COUNTDOWN, playerState: {} });
     setTimeout(() => {
       this.startedAt = Date.now();
-      this.setState({ gameState: 'showdown' });
+      this.setState({ gameState: GAME_STATE.SHOWDOWN });
 
       const redrawTimer = () =>
         requestAnimationFrame(() => {
@@ -78,7 +95,7 @@ class App extends Component {
             timer: Date.now() - this.startedAt,
           });
 
-          if (this.state.gameState === 'showdown') {
+          if (this.state.gameState === GAME_STATE.SHOWDOWN) {
             redrawTimer();
           }
         });
@@ -88,23 +105,26 @@ class App extends Component {
 
   draw(playerId) {
     const { playerState, playerCount } = this.state;
-    if (playerState[playerId] && playerState[playerId].score) {
+    if (playerState[playerId] && playerState[playerId].hasDrawn) {
       return;
     }
 
-    const allPlayersHaveDrawn =
-      Object.keys(playerState).filter(i => playerState[i].score).length >=
-      playerCount - 1;
+    const playersDrawnSoFar = Object.keys(playerState)
+      .map(i => playerState[i])
+      .filter(({ hasDrawn }) => hasDrawn);
+
+    const allPlayersHaveDrawn = playersDrawnSoFar.length >= playerCount - 1;
 
     this.setState({
       playerState: {
         ...playerState,
         [playerId]: {
           ...playerState[playerId],
+          hasDrawn: true,
           score: Date.now() - this.startedAt,
         },
       },
-      ...(allPlayersHaveDrawn ? { gameState: 'finished' } : {}),
+      ...(allPlayersHaveDrawn ? { gameState: GAME_STATE.FINISHED } : {}),
     });
   }
 
@@ -114,38 +134,40 @@ class App extends Component {
     const { timer, gameState, playerState, playerCount } = this.state;
     const fireEvent = playerId =>
       ({
-        countdown: () => this.earlyDraw(playerId),
-        showdown: () => this.draw(playerId),
+        [GAME_STATE.COUNTDOWN]: () => this.earlyDraw(playerId),
+        [GAME_STATE.SHOWDOWN]: () => this.draw(playerId),
       }[gameState] || (event => event.preventDefault()));
 
     return (
       <div>
         <Board>
-          {[...new Array(playerCount)].map((_, playerId) => (
-            <DrawButton
-              key={playerId} // eslint-disable-line react/no-array-index-key
-              disabled={gameState !== 'showdown'}
-              gameState={gameState}
-              onMouseDown={fireEvent(playerId)}
-              onTouchStart={fireEvent(playerId)}
-            >
-              {gameState === 'showdown' ? 'draw!!!' : 'wait...'}
-              <br />
-              {(gameState === 'finished' &&
-                playerState[playerId] &&
-                playerState[playerId].score) ||
-                ''}
-            </DrawButton>
-          ))}
+          {[...new Array(playerCount)]
+            .map((_, playerId) => playerState[playerId] || { playerId })
+            .map(({ playerId, score }) => (
+              <DrawButton
+                key={playerId} // eslint-disable-line react/no-array-index-key
+                disabled={gameState !== GAME_STATE.SHOWDOWN}
+                gameState={gameState}
+                onMouseDown={fireEvent(playerId)}
+                onTouchStart={fireEvent(playerId)}
+              >
+                {gameState === GAME_STATE.SHOWDOWN ? 'draw!!!' : 'wait...'}
+                <br />
+                {(gameState === GAME_STATE.FINISHED && score) || ''}
+              </DrawButton>
+            ))}
         </Board>
 
         <ControlPanel>
-          {gameState === 'showdown' ? (
+          {gameState === GAME_STATE.SHOWDOWN ? (
             <TimeDisplay>{timer}</TimeDisplay>
           ) : (
             <StartButton
               onClick={this.start}
-              disabled={gameState !== 'idle' && gameState !== 'finished'}
+              disabled={
+                gameState !== GAME_STATE.IDLE &&
+                gameState !== GAME_STATE.FINISHED
+              }
             >
               START
             </StartButton>
