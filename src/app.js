@@ -16,15 +16,17 @@ const ACTIONS = {
 };
 
 const Board = styled.main`
-  display: flex;
+  display: grid;
+  grid-template-columns: 50% 50%;
   height: 100vh;
 `;
 const DrawButton = styled.button`
-  flex: 1 1 auto;
   padding: 25px;
   border: solid black 2px;
   background: lightgray;
   font-size: 8vw;
+  overflow: hidden;
+
   ${p => (p.isCountdown ? 'background: lightblue;' : '')};
   ${p => (p.isShowdown ? 'background: red;' : '')};
   ${p => (p.hasDrawn ? 'background: gray;' : '')};
@@ -34,7 +36,6 @@ const DrawButton = styled.button`
 `;
 
 const ControlPanel = styled.div`
-  pointer-events: none;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -48,7 +49,6 @@ const StartButton = styled.button`
   background-color: blue;
   border-radius: 0;
   color: white;
-  pointer-events: auto;
 `;
 
 const TimeDisplay = styled.div``;
@@ -200,21 +200,47 @@ class App extends Component {
   }
 
   render() {
-    const { timer, gameState } = this.state;
+    const { timer, gameState, playerCount } = this.state;
+    const MIN_PLAYER_COUNT = 2;
+    const MAX_PLAYER_COUNT = 8;
     const fireEvent = playerId =>
       ({
         [GAME_STATE.COUNTDOWN]: () => this.earlyDraw(playerId),
         [GAME_STATE.SHOWDOWN]: () => this.draw(playerId),
       }[gameState] || (event => event.preventDefault()));
-    const startButton = (
-      <StartButton
-        onClick={this.start}
-        disabled={
-          gameState !== GAME_STATE.IDLE && gameState !== GAME_STATE.FINISHED
-        }
-      >
-        START
-      </StartButton>
+    const mainMenu = (
+      <div>
+        <StartButton
+          onClick={this.start}
+          disabled={
+            gameState !== GAME_STATE.IDLE && gameState !== GAME_STATE.FINISHED
+          }
+        >
+          START
+        </StartButton>
+        <div>
+          Players:
+          <button
+            onClick={() =>
+              this.setState({
+                playerCount: Math.max(playerCount - 1, MIN_PLAYER_COUNT),
+              })
+            }
+          >
+            &lt;
+          </button>
+          {playerCount}
+          <button
+            onClick={() =>
+              this.setState({
+                playerCount: Math.min(playerCount + 1, MAX_PLAYER_COUNT),
+              })
+            }
+          >
+            &gt;
+          </button>
+        </div>
+      </div>
     );
     return (
       <div>
@@ -249,8 +275,8 @@ class App extends Component {
         <ControlPanel>
           {{
             [GAME_STATE.SHOWDOWN]: <TimeDisplay>{timer}</TimeDisplay>,
-            [GAME_STATE.IDLE]: startButton,
-            [GAME_STATE.FINISHED]: startButton,
+            [GAME_STATE.IDLE]: mainMenu,
+            [GAME_STATE.FINISHED]: mainMenu,
           }[gameState] || ''}
         </ControlPanel>
       </div>
