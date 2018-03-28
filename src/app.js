@@ -19,39 +19,53 @@ const Board = styled.main`
   display: grid;
   grid-template-columns: 50% 50%;
   height: 100vh;
+  ${({ blur }) => (blur ? 'filter: blur(10px)' : '')};
 `;
 const DrawButton = styled.button`
   padding: 25px;
-  border: solid black 2px;
-  background: lightgray;
+  border: solid 1px #333;
+  border-radius: 0;
+  background: #805d15;
   font-size: 8vw;
   overflow: hidden;
 
-  ${p => (p.isCountdown ? 'background: lightblue;' : '')};
-  ${p => (p.isShowdown ? 'background: red;' : '')};
-  ${p => (p.hasDrawn ? 'background: gray;' : '')};
-  ${p => (p.isLoser ? 'background: yellow;' : '')};
-  ${p => (p.hasDrawnEarly ? 'background: #333;' : '')};
-  ${p => (p.isWinner ? 'background: lightgreen;' : '')};
+  ${p => (p.isCountdown ? 'background: #2F4172;' : '')};
+  ${p => (p.isShowdown ? 'background: #AA4639;' : '')};
+  ${p => (p.hasDrawn ? 'background: #805D15;' : '')};
+  ${p => (p.isLoser ? 'background: #805D15;' : '')};
+  ${p => (p.hasDrawnEarly ? 'background: #553A00;' : '')};
+  ${p => (p.isWinner ? 'background: #7B9F35;' : '')};
 `;
 
 const ControlPanel = styled.div`
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateX(-50%) translateY(-50%);
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-align: center;
-  background-color: white;
-`;
-
-const StartButton = styled.button`
-  font-size: 8vw;
-  background-color: blue;
-  border-radius: 0;
   color: white;
 `;
 
-const TimeDisplay = styled.div``;
+const StartButton = styled.button`
+  transition: 100ms;
+  font-size: 6vw;
+  background-color: #aa4639;
+  border-radius: 10px;
+  border: none;
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.4);
+  transform: translate(-2px, -2px);
+  padding: 1vw 3vw;
+  color: white;
+
+  &:hover {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.4);
+    transform: translate(0, 0);
+  }
+`;
 
 const handlePlayerStateChange = (playerState = {}, action) => {
   switch (action.type) {
@@ -87,7 +101,6 @@ class App extends Component {
 
     this.state = {
       gameState: GAME_STATE.IDLE,
-      timer: 0,
       playerCount: 2,
       playerState: {},
     };
@@ -139,18 +152,6 @@ class App extends Component {
 
       this.startedAt = Date.now();
       this.setState({ gameState: GAME_STATE.SHOWDOWN });
-
-      const redrawTimer = () =>
-        requestAnimationFrame(() => {
-          this.setState({
-            timer: Date.now() - this.startedAt,
-          });
-
-          if (this.state.gameState === GAME_STATE.SHOWDOWN) {
-            redrawTimer();
-          }
-        });
-      redrawTimer();
     }, preFaceOffTimer);
   }
 
@@ -200,7 +201,7 @@ class App extends Component {
   }
 
   render() {
-    const { timer, gameState, playerCount } = this.state;
+    const { gameState, playerCount } = this.state;
     const MIN_PLAYER_COUNT = 2;
     const MAX_PLAYER_COUNT = 8;
     const fireEvent = playerId =>
@@ -208,43 +209,12 @@ class App extends Component {
         [GAME_STATE.COUNTDOWN]: () => this.earlyDraw(playerId),
         [GAME_STATE.SHOWDOWN]: () => this.draw(playerId),
       }[gameState] || (event => event.preventDefault()));
-    const mainMenu = (
-      <div>
-        <StartButton
-          onClick={this.start}
-          disabled={
-            gameState !== GAME_STATE.IDLE && gameState !== GAME_STATE.FINISHED
-          }
-        >
-          START
-        </StartButton>
-        <div>
-          Players:
-          <button
-            onClick={() =>
-              this.setState({
-                playerCount: Math.max(playerCount - 1, MIN_PLAYER_COUNT),
-              })
-            }
-          >
-            &lt;
-          </button>
-          {playerCount}
-          <button
-            onClick={() =>
-              this.setState({
-                playerCount: Math.min(playerCount + 1, MAX_PLAYER_COUNT),
-              })
-            }
-          >
-            &gt;
-          </button>
-        </div>
-      </div>
-    );
+
     return (
       <div>
-        <Board>
+        <Board
+          blur={[GAME_STATE.IDLE, GAME_STATE.FINISHED].indexOf(gameState) >= 0}
+        >
           {this.getPlayers().map(
             ({ playerId, score, isWinner, hasDrawn, hasDrawnEarly }) => (
               <DrawButton
@@ -272,13 +242,39 @@ class App extends Component {
           )}
         </Board>
 
-        <ControlPanel>
-          {{
-            [GAME_STATE.SHOWDOWN]: <TimeDisplay>{timer}</TimeDisplay>,
-            [GAME_STATE.IDLE]: mainMenu,
-            [GAME_STATE.FINISHED]: mainMenu,
-          }[gameState] || ''}
-        </ControlPanel>
+        {[GAME_STATE.IDLE, GAME_STATE.FINISHED].indexOf(gameState) >= 0 ? (
+          <ControlPanel>
+            <div>
+              <StartButton onClick={this.start}>START</StartButton>
+              <br />
+              <br />
+              <div>
+                Players:
+                <button
+                  onClick={() =>
+                    this.setState({
+                      playerCount: Math.max(playerCount - 1, MIN_PLAYER_COUNT),
+                    })
+                  }
+                >
+                  &lt;
+                </button>
+                {playerCount}
+                <button
+                  onClick={() =>
+                    this.setState({
+                      playerCount: Math.min(playerCount + 1, MAX_PLAYER_COUNT),
+                    })
+                  }
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          </ControlPanel>
+        ) : (
+          ''
+        )}
       </div>
     );
   }
